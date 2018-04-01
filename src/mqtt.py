@@ -113,9 +113,6 @@ class MQTTClient:
 
 
   def disconnect(self):
-    """Disconnect and close the MQTT socket
-
-    """
     self._connect_thread_running = False
     if self._sock is not None:
       try:
@@ -127,12 +124,6 @@ class MQTTClient:
 
 
   def isconnected(self):
-    """Get the connected state of the MQTT client
-
-      Returns:
-        True if the client is connected to the broker, else False
-
-    """
     return self._isconnected
 
 
