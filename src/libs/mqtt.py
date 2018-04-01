@@ -24,6 +24,9 @@
 #  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# Portions of this code are based on the micropython-lib umqtt.simple library released under the MIT License
+# Copyright (c) 2013, 2014 micropython-lib contributors
+
 from micropython import const  
 import usocket as socket
 import ustruct as struct
