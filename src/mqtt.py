@@ -47,17 +47,6 @@ class MQTTException(Exception):
 class MQTTClient:
 
   def __init__(self, server, port, reconnect_retry_time=10, keep_alive=5, ssl=False, ssl_params={}):
-    """MQTTClient constructor
-
-      Args:
-        server (str): The address of the MQTT broker
-        port (num): The port that the MQTT broker is listening for connections on
-        reconnect_retry_time (num): The time in seconds between reconnect attempts
-        keep_alive (num): The time in seconds of no activity before sending a ping to the broker
-        ssl (bool): Set True to use an SSL connection
-        ssl_params (object): The SSL parameters
-
-    """
     self._client_id = None
     self._sock = None
     self._addr = socket.getaddrinfo(server, port)[0][-1]
@@ -83,77 +72,33 @@ class MQTTClient:
     self._connect_thread_running = False
     self._read_thread_running = False
 
+
   def __del__():
     self._connect_thread_running = False
     self._read_thread_running = False
 
+
   def set_connected_callback(self, cb):
-    """Set the callback which is fired when the connected status changes
-
-      The callback should have the following method signature:
-        def con_cb(isconnected):
-
-      The isconnected arg is a bool indicating if the client is connected to the broker (True) or not (False)
-    """
     self._connected_callback = cb
 
 
   def set_message_callback(self, cb):
-    """Set the callback which is fired when a message is received
-
-      The callback should have the following method signature:
-        def msg_cb(topic, payload):
-
-    """
     self._message_callback = cb
 
 
   def set_puback_callback(self, cb):
-    """Set the callback which is fired when a puback message arrives
-
-      The callback should have the following method signature:
-        def puback_cb(msg_id):
-
-      The arg msg_id corresponds to the msg_id returned by the publish method when using QOS 1
-    """
     self._puback_callback = cb
 
 
   def set_suback_callback(self, cb):
-    """Set the callback which is fired when a suback message arrives
-
-      The callback should have the following method signature:
-        def suback_cb(msg_id, qos):
-
-      The arg msg_id corresponds to the msg_id returned by the subscribe method and qos is the granted qos
-    """
     self._suback_callback = cb
 
 
   def set_unsuback_callback(self, cb):
-    """Set the callback which is fired when an unsuback message arrives
-
-      The callback should have the following method signature:
-        def unsuback_cb(msg_id):
-
-      The arg msg_id corresponds to the msg_id returned by the unsubscribe method
-    """
     self._unsuback_callback = cb
 
 
-  def connect(self, client_id, user=None, password=None, clean_session=False, will_topic=None, will_qos=0, will_retain=False, will_payload=None):
-    """Connect to an MQTT broker and start the MQTT connect thread
-
-      Args:
-        client_id (str): The MQTT client ID
-        user (str): The user name used in authentication with the broker
-        password (str): The password used in authentication with the broker
-        clean_session (bool): Set True to create a clean session each time the client connects to the broker
-        will_topic (str): The client's last will and testiment message topic
-        will_qos (num): The client's last will and testiment message quality of service (0, 1 or 2)
-        will_retain (bool): Set True to make the client's last will and testiment a retained message with the broker
-        will_message (str): The client's last will and testiment message payload
-    """
+  def connect(self, client_id, user=None, password=None, clean_session=True, will_topic=None, will_qos=0, will_retain=False, will_payload=None):
     self._client_id = client_id
     self._user = user
     self._pswd = password
