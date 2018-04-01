@@ -11,5 +11,28 @@ The **MQTTClient** class is a simple lightweight MQTT client for basic MQTT pub 
 - Publish, subscribe and receipt of published messages are all async
 - Automatically handles ping requests if no messages are sent for a period of time
 
+#### Usage
+See the **basic-example.py** file in the **examples** folder for a simple example of using the **MQTTClient** class
 
+##### `from libs.mqtt import MQTTClient`
+Import the MQTTClient class
+
+##### `client = MQTTClient('192.168.1.1', port=1883)`
+Construct a new instance of the **MQTTClient** class
+- Parameter: **server** - the address of the MQTT broker
+  - Type: string
+- Parameter: **port** - the TCP/IP port to connect to
+  - Type: number
+- Optional Parameter: **reconnect_retry_time** - the time in seconds between reconnect retry attempts
+  - Type: number
+  - Default: 10
+- Optional Parameter: **keep_alive** - the time in seconds of no activity before a ping is sent to the broker
+  - Type: number
+  - Default: 15
+- Optional Parameter: **ssl** - set True to use SSL
+  - Type: boolean
+  - Default: False
+- Optional Parameter: **ssl_params** - the SSL parameters to use if using SSL
+  - Type: object
+  
 
