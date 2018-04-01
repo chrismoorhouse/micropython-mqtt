@@ -34,5 +34,9 @@ Construct a new instance of the **MQTTClient** class
   - Default: False
 - Optional Parameter: **ssl_params** - the SSL parameters to use if using SSL
   - Type: object
-  
 
+##### `set_connected_callback`
+Set the callback method which is fired when the **connected** status changes. This callback is optional
+- Parameter: **cb** - the callback method
+  - Type: method name
+  - Callback Signature: `def connected_cb(status)` where **status** is True if the client is connected and False if disconnected
