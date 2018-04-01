@@ -39,9 +39,9 @@ DEBUG       = const(2)
 INFO        = const(3)
 WARN        = const(4)
 ERROR       = const(5)
-DEBUG_LEVEL = const(INFO)
+DEBUG_LEVEL = const(DEBUG)
 
-class MQTTPublishException(Exception):
+class MQTTException(Exception):
   pass
 
 class MQTTClient:
@@ -72,9 +72,11 @@ class MQTTClient:
     self._lw_msg = None
     self._lw_qos = 0
     self._lw_retain = False
-    self._message_received_callback = None
+    self._message_callback = None
     self._connected_callback = None
     self._puback_callback = None
+    self._suback_callback = None
+    self._unsuback_callback = None
     self._isconnected = False
     self._reconnect_retry_time = reconnect_retry_time
     self._last_msg_sent_time = 0
@@ -96,6 +98,16 @@ class MQTTClient:
     self._connected_callback = cb
 
 
+  def set_message_callback(self, cb):
+    """Set the callback which is fired when a message is received
+
+      The callback should have the following method signature:
+        def msg_cb(topic, payload):
+
+    """
+    self._message_callback = cb
+
+
   def set_puback_callback(self, cb):
     """Set the callback which is fired when a puback message arrives
 
@@ -107,7 +119,29 @@ class MQTTClient:
     self._puback_callback = cb
 
 
-  def connect(self, client_id, user=None, password=None, clean_session=True, will_topic=None, will_qos=0, will_retain=False, will_payload=None):
+  def set_suback_callback(self, cb):
+    """Set the callback which is fired when a suback message arrives
+
+      The callback should have the following method signature:
+        def suback_cb(msg_id, qos):
+
+      The arg msg_id corresponds to the msg_id returned by the subscribe method and qos is the granted qos
+    """
+    self._suback_callback = cb
+
+
+  def set_unsuback_callback(self, cb):
+    """Set the callback which is fired when an unsuback message arrives
+
+      The callback should have the following method signature:
+        def unsuback_cb(msg_id):
+
+      The arg msg_id corresponds to the msg_id returned by the unsubscribe method
+    """
+    self._unsuback_callback = cb
+
+
+  def connect(self, client_id, user=None, password=None, clean_session=False, will_topic=None, will_qos=0, will_retain=False, will_payload=None):
     """Connect to an MQTT broker and start the MQTT connect thread
 
       Args:
@@ -159,9 +193,8 @@ class MQTTClient:
 
   def publish(self, topic, payload, retain=False, qos=0):
     if qos < 0 or qos > 1:
-      raise MQTTPublishException('QOS must be 0 or 1')
+      raise MQTTException('QOS must be 0 or 1')
     try:
-      pub_id = None
       pkt = bytearray(b"\x30\0\0\0")
       pkt[0] |= qos << 1 | retain
       sz = 2 + len(topic) + len(payload)
@@ -178,26 +211,45 @@ class MQTTClient:
       assert self._send_str(topic)
       if qos > 0:
         self._pub_id += 1
-        pub_id = self._pub_id
-        struct.pack_into("!H", pkt, 0, pub_id)
+        struct.pack_into("!H", pkt, 0, self._pub_id)
         assert self._send_packet(pkt, 2)
       assert self._send_packet(payload)
-      return pub_id
+      return self._pub_id
     except Exception as e:
       self._log(ERROR, 'Exception caught publishing MQTT message', e)
       self._destroy_socket()
-      raise MQTTPublishException('Failed to publish message to topic %s' % topic)
+      raise MQTTException('Failed to publish message to topic %s' % topic)
       
 
+  def subscribe(self, topic, qos=0):
+    if qos < 0 or qos > 1:
+      raise MQTTException('QOS must be 0 or 1')
+    try:
+      pkt = bytearray(b"\x82\0\0\0")
+      self._pub_id += 1
+      struct.pack_into("!BH", pkt, 1, 2 + 2 + len(topic) + 1, self._pub_id)
+      assert self._send_packet(pkt)
+      assert self._send_str(topic)
+      assert self._send_packet(qos.to_bytes(1, 'little'))
+      return self._pub_id
+    except Exception as e:
+      self._log(ERROR, 'Exception caught subscribing to MQTT topic', e)
+      self._destroy_socket()
+      raise MQTTException('Failed to subscribe to topic %s' % topic)
 
 
-
-
-
-
-
-
-
+  def unsubscribe(self, topic):
+    try:
+      pkt = bytearray(b"\xA2\0\0\0")
+      self._pub_id += 1
+      struct.pack_into("!BH", pkt, 1, 2 + 2 + len(topic), self._pub_id)
+      assert self._send_packet(pkt)
+      assert self._send_str(topic)
+      return self._pub_id
+    except Exception as e:
+      self._log(ERROR, 'Exception caught unsubscribing from MQTT topic', e)
+      self._destroy_socket()
+      raise MQTTException('Failed to unsubscribe from topic %s' % topic)
 
 
   def _connect_loop(self):
@@ -340,24 +392,62 @@ class MQTTClient:
     return self._send_packet(b"\xc0\0")
 
   
+  def _recv_len(self, start):
+    if not start & 0x80:
+      return start
+    n = start
+    sh = 0
+    while 1:
+      b = self._sock.read(1)[0]
+      n |= (b & 0x7f) << sh
+      assert n < 0x7fffffff
+      if not b & 0x80:
+        return n
+      sh += 7
+
+
   def _read_socket_loop(self):
     self._sock.setblocking(True)
     while self._read_thread_running:
       try:
         hdr = self._sock.read(2)
         if hdr != None and hdr != b'':
-          if hdr[0] == 0xd0 and hdr[1] == 0x00: # PING response
-            self._log(TRACE, "Received MQTT ping response")
-
-          if hdr[0] == 0x40 and hdr[1] == 0x02: # PUBACK response
-            msgID = self._sock.read(2)
-            if self._puback_callback is not None:
-              self._puback_callback(msgID[0] << 8 | msgID[1])
-
+          if hdr[0] & 0xf0 != 0x30:
+            if hdr[0] == 0xd0 and hdr[1] == 0x00: # PING response
+              self._log(TRACE, "Received MQTT ping response")
+            if hdr[0] == 0x40 and hdr[1] == 0x02: # PUBACK response
+              msg_data = self._sock.read(2)
+              if self._puback_callback is not None:
+                self._puback_callback(msg_data[0] << 8 | msg_data[1])
+            if hdr[0] == 0x90 and hdr[1] == 0x03: # SUBACK response
+              msg_data = self._sock.read(3)
+              if self._suback_callback is not None:
+                self._suback_callback(msg_data[0] << 8 | msg_data[1], msg_data[2])
+            if hdr[0] == 0xB0 and hdr[1] == 0x02: # UNSUBACK response
+              msg_data = self._sock.read(2)
+              if self._unsuback_callback is not None:
+                self._unsuback_callback(msg_data[0] << 8 | msg_data[1])
+          elif hdr[0] & 0xf0 == 0x30: # PUBLISH message
+            sz = self._recv_len(hdr[1])
+            topic_len = self._sock.read(2)
+            topic_len = (topic_len[0] << 8) | topic_len[1]
+            topic = self._sock.read(topic_len)
+            sz -= topic_len + 2
+            if hdr[0] & 6:
+              pid = self._sock.read(2)
+              pid = pid[0] << 8 | pid[1]
+              sz -= 2
+            pay = self._sock.read(sz)
+            if self._message_callback is not None:
+              self._message_callback(topic, pay)
+            if hdr[0] & 6 == 2:
+              pkt = bytearray(b"\x40\x02\0\0")
+              struct.pack_into("!H", pkt, 2, pid)
+              self._send_packet(pkt)
       except Exception as e:
         self._log(DEBUG, 'Exception caught processing received message', e)
 
-      utime.sleep_ms(5)
+      utime.sleep_ms(50)
 
 
     
