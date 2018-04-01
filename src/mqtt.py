@@ -72,31 +72,24 @@ class MQTTClient:
     self._connect_thread_running = False
     self._read_thread_running = False
 
-
   def __del__():
     self._connect_thread_running = False
     self._read_thread_running = False
 
-
   def set_connected_callback(self, cb):
     self._connected_callback = cb
-
 
   def set_message_callback(self, cb):
     self._message_callback = cb
 
-
   def set_puback_callback(self, cb):
     self._puback_callback = cb
-
 
   def set_suback_callback(self, cb):
     self._suback_callback = cb
 
-
   def set_unsuback_callback(self, cb):
     self._unsuback_callback = cb
-
 
   def connect(self, client_id, user=None, password=None, clean_session=True, will_topic=None, will_qos=0, will_retain=False, will_payload=None):
     self._client_id = client_id
@@ -107,10 +100,8 @@ class MQTTClient:
     self._lw_qos = will_qos
     self._lw_retain = will_retain
     self._lw_msg = will_payload
-
     self._connect_thread_running = True
     _thread.start_new_thread(self._connect_loop, ())
-
 
   def disconnect(self):
     self._connect_thread_running = False
@@ -122,10 +113,8 @@ class MQTTClient:
         self._log(DEBUG, 'Exception caught closing MQTT socket', e)
     self._log(INFO, 'MQTT socket is disconnecting')
 
-
   def isconnected(self):
     return self._isconnected
-
 
   def publish(self, topic, payload, retain=False, qos=0):
     if qos < 0 or qos > 1:
@@ -156,7 +145,6 @@ class MQTTClient:
       self._destroy_socket()
       raise MQTTException('Failed to publish message to topic %s' % topic)
       
-
   def subscribe(self, topic, qos=0):
     if qos < 0 or qos > 1:
       raise MQTTException('QOS must be 0 or 1')
@@ -173,7 +161,6 @@ class MQTTClient:
       self._destroy_socket()
       raise MQTTException('Failed to subscribe to topic %s' % topic)
 
-
   def unsubscribe(self, topic):
     try:
       pkt = bytearray(b"\xA2\0\0\0")
@@ -186,7 +173,6 @@ class MQTTClient:
       self._log(ERROR, 'Exception caught unsubscribing from MQTT topic', e)
       self._destroy_socket()
       raise MQTTException('Failed to unsubscribe from topic %s' % topic)
-
 
   def _connect_loop(self):
     last_reconnect_attempt_time = self._reconnect_retry_time * -1
@@ -202,7 +188,6 @@ class MQTTClient:
               self._connected_callback(self._isconnected)
             self._read_thread_running = True
             _thread.start_new_thread(self._read_socket_loop, ())
-
         else:
           if utime.time() > self._last_msg_sent_time + self._keep_alive:
             assert self._send_ping()
@@ -211,14 +196,12 @@ class MQTTClient:
       finally:
         utime.sleep(1)
 
-
   def _log(self, level, message, e=None):
     if level >= DEBUG_LEVEL:
       if e is None:
         print('%s' % (message))
       else:
         print('%s: %r' % (message, e))
-
 
   def _reconnect(self):
     # create and open a socket and wrap with SSL if required
@@ -236,7 +219,6 @@ class MQTTClient:
     except OSError as e:
       self._log(DEBUG, 'Exception caught wrapping MQTT socket in SSL', e)
       return False
-
     try:
       # build the connect message
       msg = bytearray(b"\x10\0\0\x04MQTT\x04\x02\0\0")
@@ -283,7 +265,6 @@ class MQTTClient:
       self._log(ERROR, 'Exception caught sending MQTT connection packet', e)
       return False
 
-    
   def _destroy_socket(self):
     try:
       self._sock.close()
@@ -302,7 +283,6 @@ class MQTTClient:
         if self._connected_callback is not None:
           self._connected_callback(self._isconnected)
 
-
   def _send_packet(self, packet, l=0):
     try:
       if l == 0:
@@ -315,19 +295,16 @@ class MQTTClient:
       self._log(ERROR, 'Exception caught sending MQTT packet', e)
       return False
 
-
   def _send_str(self, s):
     if self._send_packet(struct.pack("!H", len(s))):
       return self._send_packet(s)
     else:
       return False
 
-
   def _send_ping(self):
     self._log(TRACE, 'Sending ping message')
     return self._send_packet(b"\xc0\0")
 
-  
   def _recv_len(self, start):
     if not start & 0x80:
       return start
@@ -340,7 +317,6 @@ class MQTTClient:
       if not b & 0x80:
         return n
       sh += 7
-
 
   def _read_socket_loop(self):
     self._sock.setblocking(True)
@@ -384,9 +360,3 @@ class MQTTClient:
         self._log(DEBUG, 'Exception caught processing received message', e)
 
       utime.sleep_ms(50)
-
-
-    
-
-
-
